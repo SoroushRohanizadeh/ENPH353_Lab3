@@ -4,21 +4,26 @@ import rospy
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-import cv2
+import cv2 as cv
+import numpy as np
+
+
+blackThreshold = 127
 
 class ControlNode:
 
     def __init__(self):
         rospy.init_node('move_robot', anonymous=True)
-        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
-        self.sub = rospy.Subscriber('/rrbot/camera1/image_raw', Image, self.callback)
-        self.rate = rospy.Rate(2)
 
         self.bridge = CvBridge()
         self.move = Twist()
 
+        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        self.sub = rospy.Subscriber('/rrbot/camera1/image_raw', Image, self.callback)
+        self.rate = rospy.Rate(2)
+
     
-    def processFrame(frame):
+    def processFrame(self, frame):
         """
         Process the given frame and return the middle point.
 
@@ -37,16 +42,17 @@ class ControlNode:
 
         for i in range(dilated.shape[1]):
             if (not lineSeen):
-            if (isLinePixel(dilated[yLimit, i])):
-                lineSeen = True
-                firstLineXPixel = i
-                numLineXPixels += 1
+                if (self.isLinePixel(dilated[yLimit, i])):
+                    lineSeen = True
+                    firstLineXPixel = i
+                    numLineXPixels += 1
             else:
-            numLineXPixels += 1
-            if (not isLinePixel(dilated[yLimit, i])):
-                break
+                numLineXPixels += 1
+                if (not self.isLinePixel(dilated[yLimit, i])):
+                    break
         return int(firstLineXPixel + numLineXPixels / 2)
-    def isLinePixel(pixel):
+
+    def isLinePixel(self, pixel):
         """
         Return true if the given pixel is on the line.
 
@@ -56,12 +62,14 @@ class ControlNode:
 
     def callback(self, img):
         cvImg = self.bridge.imgmsg_to_cv2(img, desired_encoding='bgr8')
-        middle = processFrame(cvImg)
-        error = cvImg.shape[1] - middle
+        middle = self.processFrame(cvImg)
+        error = cvImg.shape[1] / 2 - middle
+        print(error)
 
-        self.move.linear.x = error
+        self.move.linear.x = 0.5
+        self.move.linear.y = error / 100
 
-        self.pub.publish(self.Twist)
+        self.pub.publish(self.move)
 
     def run(self):
         while not rospy.is_shutdown():
@@ -71,5 +79,6 @@ if __name__ == '__main__':
     try:
         node = ControlNode()
         node.run()
+        rospy.spin()
     except rospy.ROSInterruptException:
         pass
