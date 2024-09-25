@@ -50,6 +50,7 @@ class ControlNode:
                 numLineXPixels += 1
                 if (not self.isLinePixel(dilated[yLimit, i])):
                     break
+        print(firstLineXPixel, numLineXPixels)
         return int(firstLineXPixel + numLineXPixels / 2)
 
     def isLinePixel(self, pixel):
@@ -64,10 +65,12 @@ class ControlNode:
         cvImg = self.bridge.imgmsg_to_cv2(img, desired_encoding='bgr8')
         middle = self.processFrame(cvImg)
         error = cvImg.shape[1] / 2 - middle
-        print(error)
 
-        self.move.linear.x = 0.5
-        self.move.linear.y = error / 100
+        kP = 1 / 400
+
+        print(error)
+        self.move.linear.x = 0.1
+        self.move.angular.z = error * kP
 
         self.pub.publish(self.move)
 
